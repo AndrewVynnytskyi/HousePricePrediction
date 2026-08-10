@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "house-price-prediction"
+version = "0.1.0"
+description = "Config-driven scikit-learn training pipeline for the Ames Housing / Kaggle House Prices dataset"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.3,<3",
+    "numpy>=2.2,<3",
+    "scikit-learn>=1.7,<2",
+    "matplotlib>=3.10,<4",
+    "seaborn>=0.13,<1",
+    "omegaconf>=2.3,<2.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "jupyter",
+    "ipykernel>=7.1",
+    "black==24.8.0",
+    "isort==5.13.2",
+    "flake8==7.1.1",
+    "pre-commit>=3.8,<4",
+    "pytest>=8.3,<9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100

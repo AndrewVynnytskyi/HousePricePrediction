@@ -1,0 +1,11 @@
+.venv/
+.git/
+.idea/
+notebooks/
+outputs/
+models/*.joblib
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/

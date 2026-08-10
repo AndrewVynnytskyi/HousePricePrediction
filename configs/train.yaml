@@ -1,0 +1,126 @@
+seed: 42
+
+data:
+  train_path: data/train.csv
+  test_path: data/test.csv
+  id_column: Id
+  target_column: SalePrice
+  log_transform_target: true
+
+  # Dropped AFTER imputation, mirroring the original notebook's cell order.
+  dropped_columns:
+    [Street, Alley, Utilities, Condition2, RoofMatl, Heating,
+     PoolQC, PoolArea, MiscFeature, Fence, MiscVal]
+
+  impute:
+    # KNNImputer is fit on the full numeric frame (all rows, including the
+    # already log1p-transformed target column) BEFORE the train/test split.
+    # This is a pre-existing leakage pattern from the original notebook,
+    # kept as-is here so results reproduce exactly. See README "Known
+    # limitations".
+    knn_lotfrontage_column: LotFrontage
+    knn_n_neighbors: 5
+    knn_weights: distance
+    bsmt_exposure_fill_value: "No"
+    dropna_columns: [Electrical]
+    categorical_fill_none_columns:
+      [MasVnrType, BsmtQual, BsmtCond, BsmtFinType1, BsmtFinType2,
+       FireplaceQu, GarageType, GarageFinish, GarageQual, GarageCond,
+       Fence, MiscFeature, Alley, PoolQC]
+    numeric_fill_zero_columns: [MasVnrArea, GarageYrBlt, BsmtFinSF2]
+
+  split:
+    test_size: 0.3
+    random_state: 42
+    shuffle: true
+
+feature_selection:
+  mode: full   # one of: full | importance | pca
+  importance:
+    selector_params:
+      bootstrap: false
+      max_depth: 20
+      max_features: sqrt
+      min_samples_split: 2
+      min_samples_leaf: 1
+      n_estimators: 1000
+      n_jobs: -1
+      random_state: 42
+    threshold: 0.001
+  pca:
+    n_components: 0.90
+    whiten: true
+
+training:
+  cv_folds: 5
+  n_jobs: -1
+  # Default: fast, reproduces the documented best result (ElasticNet, full
+  # feature set). Override to run the full sweep, e.g.:
+  #   python -m src.train training.models='[LinearRegression,KNN,RandomForest,Ridge,Lasso,ElasticNet]'
+  models: [ElasticNet]
+
+models:
+  LinearRegression:
+    ravel_y: false
+    param_grid:
+      tol: [0.0001, 100.0, 100000000.0]
+      fit_intercept: [true, false]
+      n_jobs: [-1]
+
+  KNN:
+    ravel_y: false
+    param_grid:
+      n_neighbors: [1, 4, 7, 10, 13]
+      weights: [uniform, distance]
+      p: [1, 2]
+      metric: [chebyshev, minkowski]
+      n_jobs: [-1]
+
+  RandomForest:
+    ravel_y: true
+    param_grid:
+      n_estimators: [100, 200, 500, 1000]
+      max_depth: [null, 5, 10, 20, 30]
+      min_samples_split: [2, 5, 10]
+      min_samples_leaf: [1, 2, 5, 10]
+      max_features: [sqrt, log2]
+      bootstrap: [true, false]
+      random_state: [42]
+      n_jobs: [-1]
+
+  Ridge:
+    ravel_y: false
+    param_grid:
+      alpha: [0.0001, 100.0, 100000000.0]
+      fit_intercept: [true, false]
+      solver: [auto, svd, cholesky, lsqr, saga]
+      max_iter: [10000, 50000, 100000]
+      tol: [0.001, 0.01, 0.1]
+      random_state: [42]
+
+  Lasso:
+    ravel_y: false
+    param_grid:
+      alpha: [0.0001, 100.0, 100000000.0]
+      fit_intercept: [true, false]
+      selection: [random, cyclic]
+      max_iter: [10000, 50000, 100000]
+      tol: [0.001, 0.01, 0.1]
+      random_state: [42]
+
+  ElasticNet:
+    ravel_y: false
+    param_grid:
+      alpha: [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
+      l1_ratio: [0.1, 0.3, 0.5, 0.7, 0.9, 1.0]
+      fit_intercept: [true, false]
+      tol: [0.0001, 0.001, 0.01]
+      selection: [cyclic, random]
+      max_iter: [100000, 200000, 300000]
+      random_state: [42]
+
+output:
+  models_dir: models
+  runs_dir: outputs/runs
+  metrics_csv: outputs/metrics.csv
+  save_best_only: true
