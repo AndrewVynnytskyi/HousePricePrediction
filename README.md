@@ -172,10 +172,23 @@ RMSE is on the original dollar scale (post `expm1`); R² is on the held-out
   the imputer on the training split only.
 - **No outlier removal.** A handful of large-area, low-quality-adjusted
   outliers visible in the EDA notebook are not filtered out.
-- **No submission generation.** The held-out Kaggle `test.csv` /
-  `sample_submission.csv` files are present but unused — this project
-  reports metrics on a held-out split of the training data, not a
-  leaderboard submission.
+
+## Generating a Kaggle submission
+
+```bash
+python -m src.predict --output outputs/submission.csv
+```
+
+Loads the persisted `models/best_model.joblib` and `models/preprocessor.joblib`
+(no refitting), cleans `data/test.csv` (filling the handful of columns that
+are only missing in the test split, e.g. `MSZoning`, `KitchenQual`,
+`SaleType`, using train-set statistics, since a submission needs a
+prediction for every row), and writes a two-column `Id,SalePrice` CSV
+matching `data/sample_submission.csv`'s format — ready to upload directly
+on the [competition's submission page](https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques/submit).
+
+Kaggle leaderboard score: **TBD — fill in after submitting**
+(public leaderboard RMSE on log(SalePrice), Kaggle's own scoring metric).
 
 ## Tech stack
 
