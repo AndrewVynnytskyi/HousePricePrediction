@@ -3,8 +3,9 @@
 A config-driven scikit-learn pipeline that predicts house sale prices on the
 Kaggle "House Prices: Advanced Regression Techniques" (Ames Housing) dataset.
 Six regression algorithms are tuned with `GridSearchCV` across three feature
-representations, and the best model reaches an RMSE of about **$22,840** on
-held-out data (R² ≈ 0.90).
+representations. The best model reaches an RMSE of about **$22,840** on
+held-out data (R² ≈ 0.90) and scores **0.13749** on Kaggle's public
+leaderboard.
 
 The project started as a single exploratory notebook and was refactored into
 a reproducible pipeline: hyperparameters and preprocessing choices live in a
@@ -187,8 +188,21 @@ prediction for every row), and writes a two-column `Id,SalePrice` CSV
 matching `data/sample_submission.csv`'s format — ready to upload directly
 on the [competition's submission page](https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques/submit).
 
-Kaggle leaderboard score: **TBD — fill in after submitting**
-(public leaderboard RMSE on log(SalePrice), Kaggle's own scoring metric).
+**Kaggle public leaderboard score: 0.13749** (RMSE on `log(SalePrice)`,
+Kaggle's own scoring metric, lower is better).
+
+This lines up closely with the model's held-out RMSE computed the same way
+(log scale, before converting back to dollars): **0.1336** on the internal
+30% test split. The two being within ~0.004 of each other, on data the
+model never saw during training or tuning either way, is a good sign the
+internal validation split isn't overstating performance — the model
+generalizes about as well to Kaggle's actual test set as it did to its own
+held-out data. For context, 0.13-0.14 is a solid single-model result on
+this competition without extensive manual feature engineering, outlier
+removal, or ensembling — the public leaderboard's very top scores (near
+0.0) are generally the result of leaderboard probing rather than genuine
+predictive skill, since the metric is computed on log-transformed prices
+and rewards fitting to leaked/duplicated data.
 
 ## Tech stack
 
