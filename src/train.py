@@ -40,6 +40,10 @@ class Trainer:
         self.metrics_logger = MetricsLogger(cfg.output.metrics_csv, cfg.output.runs_dir)
         self._prepared: Optional[PreparedData] = None
 
+    @property
+    def prepared(self) -> Optional[PreparedData]:
+        return self._prepared
+
     def prepare_data(self) -> None:
         prepared = prepare_dataset(self.cfg)
         mode = self.cfg.feature_selection.mode

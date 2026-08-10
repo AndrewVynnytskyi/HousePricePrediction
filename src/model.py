@@ -49,22 +49,28 @@ def build_model_registry(cfg: DictConfig) -> Dict[str, ModelSpec]:
     return registry
 
 
-def select_features_by_importance(
+def compute_feature_importances(
     X_train: pd.DataFrame, y_train: pd.Series, cfg: DictConfig
-) -> List[str]:
-    """Fits a RandomForestRegressor and keeps features with
-    importance_ > threshold, sorted descending — mirrors the original
-    notebook's feature-importance filtering step.
+) -> pd.Series:
+    """Fits a RandomForestRegressor with the configured selector params and
+    returns the full importance series, sorted descending — mirrors the
+    original notebook's cells 21-22 (feature importance bar chart + table).
     """
     importance_cfg = cfg.feature_selection.importance
     selector_params = OmegaConf.to_container(importance_cfg.selector_params, resolve=True)
     rfr = RandomForestRegressor(**selector_params)
     rfr.fit(X_train, y_train)
 
-    importance = pd.Series(rfr.feature_importances_, index=X_train.columns)
-    importance = importance.sort_values(ascending=False)
-    importance = importance[importance > importance_cfg.threshold]
-    return importance.index.tolist()
+    return pd.Series(rfr.feature_importances_, index=X_train.columns).sort_values(ascending=False)
+
+
+def select_features_by_importance(
+    X_train: pd.DataFrame, y_train: pd.Series, cfg: DictConfig
+) -> List[str]:
+    """Keeps features with importance_ > threshold, sorted descending."""
+    importance = compute_feature_importances(X_train, y_train, cfg)
+    threshold = cfg.feature_selection.importance.threshold
+    return importance[importance > threshold].index.tolist()
 
 
 def build_pca_reducer(n_components: float, whiten: bool) -> PCA:
