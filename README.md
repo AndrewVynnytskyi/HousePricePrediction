@@ -112,6 +112,8 @@ to the digit against the original exploratory notebook's cached output
 (`notebooks/archive/sample_original.ipynb`); only wall-clock grid-search
 timings differ between runs (hardware-dependent, see the PCA note below).
 
+![Test RMSE by model and feature-selection mode](assets/rmse_by_model.png)
+
 ### Full feature set (254 features)
 
 | Model | CV score | Test R² | RMSE |
@@ -172,6 +174,8 @@ timings differ between runs (hardware-dependent, see the PCA note below).
   `GarageCars`, `1stFlrSF`, `YearRemodAdd`. Overall quality and living area
   dominate — consistent with the raw correlation ranking in
   `notebooks/00_eda.ipynb`.
+
+![Top 10 feature importances](assets/feature_importance.png)
 
 ## Known limitations
 
