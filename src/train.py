@@ -3,10 +3,9 @@
     python -m src.train --config configs/train.yaml
     python -m src.train training.models='[LinearRegression,KNN,RandomForest,Ridge,Lasso,ElasticNet]'
 
-Trainer.fit() reproduces the original notebook's model_scores() loop:
-GridSearchCV -> redundant refit on best_params_ -> R2 / cross_val_score /
-RMSE (on the original dollar scale, after undoing the log1p target
-transform).
+Trainer.fit() runs, per model: GridSearchCV -> refit on best_params_ ->
+R2 / cross_val_score / RMSE (on the dollar scale, after undoing the log1p
+target transform).
 """
 
 from __future__ import annotations

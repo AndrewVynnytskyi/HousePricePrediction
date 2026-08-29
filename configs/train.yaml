@@ -1,42 +1,64 @@
-seed: 42
+# Training config for the Ames Housing pipeline. Read by src.train and src.predict.
+# Override any key from the CLI (OmegaConf dotted paths) instead of editing:
+#   python -m src.train feature_selection.mode=pca
+#   python -m src.train training.models='[Ridge,Lasso]'
+# List overrides replace the list. Quote them; no spaces inside brackets.
 
+seed: 42   # unused; real determinism lives in data.split.random_state and the random_state grids
+
+# --- data: loading + cleaning (src/data.py) ---------------------------------
 data:
   train_path: data/train.csv
-  test_path: data/test.csv
-  id_column: Id
+  test_path: data/test.csv   # src.predict only
+  id_column: Id              # dropped before modeling, re-attached to the submission
   target_column: SalePrice
+
+  # log1p the target. RMSE stays in dollars -- train.py undoes it with expm1.
+  # Set false and rmse_dollars becomes wrong: expm1 is applied either way.
   log_transform_target: true
 
-  # Dropped AFTER imputation, mirroring the original notebook's cell order.
+  # Near-constant or mostly-missing. Dropped AFTER imputation -- the
+  # imputer's KNN step reads the full numeric frame, so the order matters.
   dropped_columns:
     [Street, Alley, Utilities, Condition2, RoofMatl, Heating,
      PoolQC, PoolArea, MiscFeature, Fence, MiscVal]
 
+  # Applied in this order; the order is what reproduces the notebook's numbers.
   impute:
     # KNNImputer is fit on the full numeric frame (all rows, including the
     # already log1p-transformed target column) BEFORE the train/test split.
-    # This is a pre-existing leakage pattern from the original notebook,
-    # kept as-is here so results reproduce exactly. See README "Known
-    # limitations".
+    # That leaks test rows and the target into the imputed values; kept
+    # as-is so results reproduce exactly. See README "Known limitations".
     knn_lotfrontage_column: LotFrontage
     knn_n_neighbors: 5
-    knn_weights: distance
-    bsmt_exposure_fill_value: "No"
-    dropna_columns: [Electrical]
+    knn_weights: distance                 # uniform | distance
+    bsmt_exposure_fill_value: "No"        # keep quoted -- bare No is YAML false
+    dropna_columns: [Electrical]          # null here = drop the row (one row)
+
+    # "None" as a real category: missing means no basement / garage / fence.
     categorical_fill_none_columns:
       [MasVnrType, BsmtQual, BsmtCond, BsmtFinType1, BsmtFinType2,
        FireplaceQu, GarageType, GarageFinish, GarageQual, GarageCond,
        Fence, MiscFeature, Alley, PoolQC]
+
     numeric_fill_zero_columns: [MasVnrArea, GarageYrBlt, BsmtFinSF2]
 
-  split:
+  split:   # -> train_test_split
     test_size: 0.3
-    random_state: 42
+    random_state: 42   # published numbers assume 42
     shuffle: true
 
+# --- feature_selection: which feature representation to train on ------------
 feature_selection:
+  # full       all 254 one-hot features
+  # importance keep what a RandomForest ranks above `threshold` (~100)
+  # pca        principal components instead of features
+  # Unselected sub-blocks are ignored. Recorded in metrics + the run dir name.
   mode: full   # one of: full | importance | pca
+
   importance:
+    # The forest that RANKS features -- not a model being evaluated. Fixed and
+    # pre-tuned; any RandomForestRegressor kwarg goes here.
     selector_params:
       bootstrap: false
       max_depth: 20
@@ -46,20 +68,41 @@ feature_selection:
       n_estimators: 1000
       n_jobs: -1
       random_state: 42
-    threshold: 0.001
+    threshold: 0.001   # keep importance > this; higher prunes harder
+
   pca:
-    n_components: 0.90
+    n_components: 0.90   # <1 = explained-variance target (49 here); int = exact count
     whiten: true
 
+# --- training: the grid search loop -----------------------------------------
 training:
   cv_folds: 5
-  n_jobs: -1
-  # Default: fast, reproduces the documented best result (ElasticNet, full
-  # feature set). Override to run the full sweep, e.g.:
+  n_jobs: -1   # for GridSearchCV; the grids below have their own n_jobs, and nesting both oversubscribes
+
+  # Must match a block under `models:` and an entry in _ESTIMATOR_REGISTRY
+  # (src/model.py). Default is the documented best result. Full sweep:
   #   python -m src.train training.models='[LinearRegression,KNN,RandomForest,Ridge,Lasso,ElasticNet]'
   models: [ElasticNet]
 
+# --- models: per-model hyperparameter grids ---------------------------------
+# Each block is inert unless its name appears in training.models, so all six
+# can live here permanently. Two keys each:
+#   ravel_y     flatten y_test before scoring. true only for RandomForest, to
+#               silence a DataConversionWarning. Doesn't change results.
+#   param_grid  handed straight to GridSearchCV. Every value must be a LIST,
+#               even a fixed one (n_jobs: [-1]). Bad keys fail at fit time,
+#               not at load time.
+#
+# Cost = product of the lists x cv_folds:
+#   LinearRegression 6 | KNN 40 | Lasso 108 | Ridge 270 | RandomForest 960 | ElasticNet 1296
+# RandomForest is the slowest anyway (up to 1000 trees per fit). To iterate,
+# shrink a grid from the CLI:
+#   python -m src.train training.models='[Ridge]' models.Ridge.param_grid.solver='[auto]'
+#
+# New model = register the class in _ESTIMATOR_REGISTRY AND add a block here.
 models:
+  # No regularization. tol is ignored by the estimator -- it's notebook
+  # baggage that just triples the grid.
   LinearRegression:
     ravel_y: false
     param_grid:
@@ -67,12 +110,13 @@ models:
       fit_intercept: [true, false]
       n_jobs: [-1]
 
+  # Weakest model here: distance means little across one-hot columns.
   KNN:
     ravel_y: false
     param_grid:
       n_neighbors: [1, 4, 7, 10, 13]
       weights: [uniform, distance]
-      p: [1, 2]
+      p: [1, 2]                          # Manhattan | Euclidean; minkowski only
       metric: [chebyshev, minkowski]
       n_jobs: [-1]
 
@@ -80,7 +124,7 @@ models:
     ravel_y: true
     param_grid:
       n_estimators: [100, 200, 500, 1000]
-      max_depth: [null, 5, 10, 20, 30]
+      max_depth: [null, 5, 10, 20, 30]   # null -> None = grow until pure
       min_samples_split: [2, 5, 10]
       min_samples_leaf: [1, 2, 5, 10]
       max_features: [sqrt, log2]
@@ -88,6 +132,8 @@ models:
       random_state: [42]
       n_jobs: [-1]
 
+  # L2. alpha spans 1e-4..1e8 to bracket the range -- the top end just
+  # predicts the mean. max_iter/tol matter only for lsqr/saga.
   Ridge:
     ravel_y: false
     param_grid:
@@ -98,16 +144,19 @@ models:
       tol: [0.001, 0.01, 0.1]
       random_state: [42]
 
+  # L1. Big max_iter values keep small alphas from hitting ConvergenceWarning.
   Lasso:
     ravel_y: false
     param_grid:
       alpha: [0.0001, 100.0, 100000000.0]
       fit_intercept: [true, false]
-      selection: [random, cyclic]
+      selection: [random, cyclic]        # random usually converges faster
       max_iter: [10000, 50000, 100000]
       tol: [0.001, 0.01, 0.1]
       random_state: [42]
 
+  # Default and best performer. alpha x l1_ratio is a 2-D search (1.0 = pure
+  # L1), hence the largest grid.
   ElasticNet:
     ravel_y: false
     param_grid:
@@ -119,8 +168,13 @@ models:
       max_iter: [100000, 200000, 300000]
       random_state: [42]
 
+# --- output ------------------------------------------------------------------
 output:
-  models_dir: models
-  runs_dir: outputs/runs
-  metrics_csv: outputs/metrics.csv
+  models_dir: models                # best_model.joblib + preprocessor.joblib
+  runs_dir: outputs/runs            # one dir per run: <timestamp>_<model>_<mode>/metrics.json
+  metrics_csv: outputs/metrics.csv  # appended, one row per model per run
+  # true saves the best model of THIS run; false saves nothing at all (there's
+  # no per-model path). Best is per-invocation and overwrites unconditionally,
+  # so a later, worse run replaces it -- archive it if you care. metrics.csv
+  # keeps the full history either way.
   save_best_only: true

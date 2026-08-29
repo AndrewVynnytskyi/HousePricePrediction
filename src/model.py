@@ -1,8 +1,7 @@
 """Estimator registry and feature-selection helpers.
 
-There is no neural network in this project — all six candidate models are
-scikit-learn regressors, tuned via GridSearchCV, exactly as in the original
-notebook's `models_config` dict.
+All six candidate models are scikit-learn regressors tuned via
+GridSearchCV; their grids live under `models:` in configs/train.yaml.
 """
 
 from __future__ import annotations
@@ -53,8 +52,10 @@ def compute_feature_importances(
     X_train: pd.DataFrame, y_train: pd.Series, cfg: DictConfig
 ) -> pd.Series:
     """Fits a RandomForestRegressor with the configured selector params and
-    returns the full importance series, sorted descending — mirrors the
-    original notebook's cells 21-22 (feature importance bar chart + table).
+    returns the full importance series, sorted descending.
+
+    Returns every feature, not just the ones above the threshold, so callers
+    can plot or inspect the distribution before filtering.
     """
     importance_cfg = cfg.feature_selection.importance
     selector_params = OmegaConf.to_container(importance_cfg.selector_params, resolve=True)

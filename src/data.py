@@ -1,9 +1,9 @@
 """Data loading, cleaning, and preprocessing for the Ames Housing dataset.
 
-Every function here mirrors a specific step of the original exploratory
-notebook (notebooks/archive/sample_original.ipynb) so that the transformed
-feature matrix and train/test split are numerically identical to what the
-notebook produced.
+Step order matters: imputation runs before the low-value columns are
+dropped, and scaling/one-hot encoding runs after the train/test split.
+Changing that order changes the resulting feature matrix, and with it every
+number in the README.
 """
 
 from __future__ import annotations
@@ -33,12 +33,13 @@ def apply_log_target(df: pd.DataFrame, target_column: str) -> pd.DataFrame:
 
 
 def impute_missing_values(df: pd.DataFrame, cfg: DictConfig) -> pd.DataFrame:
-    """Replicates the notebook's imputation order exactly.
+    """Fills missing values, in a fixed order the results depend on.
 
     KNNImputer is fit on the full numeric frame (including the already
-    log1p-transformed target column) before LotFrontage is filled in. This
-    is a leakage pattern inherited from the original notebook and kept
-    intentionally so results reproduce; see README "Known limitations".
+    log1p-transformed target column) before LotFrontage is filled in. That
+    leaks test-row and target information into the imputed values; it is
+    kept deliberately so the documented results reproduce. See README
+    "Known limitations".
     """
     impute_cfg = cfg.data.impute
     df = df.copy()
